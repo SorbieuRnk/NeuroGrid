@@ -3,38 +3,30 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from app.schemas.llm_outputs import HouseholdTarget, MessageDraft
 from langchain_core.prompts import ChatPromptTemplate
-from app.schemas.llm_outputs import MessageDraft, UserTarget
 from langchain_groq import ChatGroq
 
-def draft_whatsapp_message(target_data: UserTarget) -> MessageDraft:
-    # Temperature 0.7 allows for more creative, conversational text
-    llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0.7)
-    
-    # Bind to the MessageDraft schema
-    structured_llm = llm.with_structured_output(MessageDraft)
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a behavioral energy economist writing WhatsApp nudges for the NeuroGrid platform.
-        Your goal is to persuade the user to reduce their power consumption by pausing a specific appliance.
-        Tone: Friendly, urgent, and gamified. Keep it under 3 short sentences. Use emojis.
-        Always clearly state the specific appliance, the time duration, and the exact reward they will earn. Do it within 100 words."""),
-        
-        ("human", """Draft a message for this user:
-        Phone Number: {phone}
-        Appliance to pause: {appliance}
-        Duration: {duration} minutes
-        Reward: {reward_amount} {reward_type}
-        Strategist Rationale: {rationale}""")
-    ])
-    
+llm_copywriter = ChatGroq(model="openai/gpt-oss-20b", temperature=0.7)
+
+COPYWRITER_PROMPT = """
+You are a behavioral energy copywriter. Draft a short, encouraging, and urgent demand-response alert.
+- Ask the user to lower their current household energy use by {reduction_percent}%.
+- Highlight that they are currently using ~{current_kw} kW.
+- Present their reward clearly: {incentive_reward}.
+- Provide a brief tip (e.g., turning off heavy cooling or heating for 45-60 mins).
+- Keep it concise, engaging, and under 160 characters if possible.
+
+Phone: {phone_number}
+"""
+
+def draft_percentage_message(target: HouseholdTarget) -> MessageDraft:
+    structured_llm = llm_copywriter.with_structured_output(MessageDraft)
+    prompt = ChatPromptTemplate.from_template(COPYWRITER_PROMPT)
     chain = prompt | structured_llm
-    
     return chain.invoke({
-        "phone": target_data.phone_number,
-        "appliance": target_data.task.appliance_name,
-        "duration": target_data.task.duration_minutes,
-        "reward_amount": target_data.task.reward_amount,
-        "reward_type": target_data.task.reward_type,
-        "rationale": target_data.rationale
+        "reduction_percent": target.reduction_percent,
+        "current_kw": target.current_kw,
+        "incentive_reward": target.incentive_reward,
+        "phone_number": target.phone_number
     })

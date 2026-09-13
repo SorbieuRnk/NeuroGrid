@@ -1,41 +1,28 @@
 import os
 
-from app.schemas.llm_outputs import StrategyOutput
+from app.schemas.llm_outputs import DemandResponseStrategy
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 
 # Import the new model providers
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
-from langchain_xai import ChatXAI
 
 load_dotenv()
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+STRATEGIST_PROMPT = """
+You are an expert Grid Demand-Response Strategist.
+Given a grid deficit in kW and a registry of consumers with their current total power draw (kW) and reward preferences:
+1. Select target households to meet the required deficit without placing an unrealistic burden on any single home.
+2. For each selected household, calculate a convincing, achievable percentage reduction (typically between 25% and 50%).
+3. Match their stated reward preference with an appropriate incentive.
 
-def generate_demand_response_strategy(kw_deficit: float, user_profiles: str) -> StrategyOutput:
-    
-    # OPTION 1: Gemini (Google) - Excellent for complex reasoning and large context
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-    
-    # OPTION 2: Groq (Groq Inc) - Ultra-fast inference (uncomment to use)
-    # llm = ChatGroq(model="llama3-70b-8192", temperature=0)
-    
-    # OPTION 3: Grok (xAI) - (uncomment to use)
-    # llm = ChatXAI(model="grok-beta", temperature=0)
-    
-    # Bind the exact same Pydantic schema to the new LLM
-    structured_llm = llm.with_structured_output(StrategyOutput)
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are the NeuroGrid AI Strategist. Your goal is to allocate localized load shedding.
-        Analyze the available user profiles and select specific households to reduce power consumption.
-        Match the targeted appliance to the user's historical affinities and allocate an appropriate reward.
-        Do NOT exceed the required kW deficit."""),
-        ("human", "Required Load Shed (kW Deficit): {kw_deficit}\n\nAvailable Users Database:\n{user_profiles}")
-    ])
-    
+Deficit Target: {kw_deficit} kW
+Active Consumers:
+{user_profiles}
+"""
+
+def generate_demand_response_strategy(kw_deficit: float, user_profiles: str) -> DemandResponseStrategy:
+    structured_llm = llm.with_structured_output(DemandResponseStrategy)
+    prompt = ChatPromptTemplate.from_template(STRATEGIST_PROMPT)
     chain = prompt | structured_llm
-    
-    return chain.invoke({
-        "kw_deficit": kw_deficit, 
-        "user_profiles": user_profiles
-    })
+    return chain.invoke({"kw_deficit": kw_deficit, "user_profiles": user_profiles})
