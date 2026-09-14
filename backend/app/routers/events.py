@@ -6,6 +6,7 @@ from app.services.weather_service import get_live_grid_conditions
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/events", tags=["Demand Response Events"])
 
@@ -69,3 +70,34 @@ async def trigger_event(db:AsyncSession=Depends(get_db)):
     except Exception as e:
         db.rollback()
         return {"status": "error", "detail": str(e)}
+
+@router.get("/history")
+async def get_dispatch_history(limit:int=10,db:AsyncSession=Depends(get_db)):
+    """Fetches past demand-response events along with consumer details and cumulative savings."""
+    query = (
+        select(DispatchLog)
+        .options(selectinload(DispatchLog.consumer))
+        .order_by(DispatchLog.dispatched_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    logs=result.scalars().all()
+    total_target_reduction_kw = sum(log.target_reduction_kw for log in logs)
+
+    return {
+        "record_count": len(logs),
+        "total_potential_load_shed_kw": round(total_target_reduction_kw, 2),
+        "history": [
+            {
+                "log_id": log.id,
+                "phone": log.consumer.phone if log.consumer else None,
+                "dispatched_at": log.dispatched_at.isoformat(),
+                "baseline_kw": log.baseline_kw,
+                "reduction_target": f"{log.reduction_percent}%",
+                "curtailed_kw": log.target_reduction_kw,
+                "temperature": log.temperature,
+                "message": log.message_body
+            }
+            for log in logs
+        ]
+    }

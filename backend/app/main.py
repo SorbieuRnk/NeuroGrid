@@ -2,10 +2,10 @@ from contextlib import asynccontextmanager
 
 from app.db.session import AsyncSessionLocal, Base, engine
 from app.models.demand_response import Consumer
-from app.routers import events
 from fastapi import FastAPI
 from sqlalchemy import select
 
+from app.routers import events, telemetry,consumers  
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
@@ -32,7 +32,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+app.include_router(consumers.router)
 app.include_router(events.router)
+app.include_router(telemetry.router)
 
 @app.get("/")
 def health_check():
