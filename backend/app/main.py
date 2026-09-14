@@ -4,6 +4,7 @@ from app.db.session import AsyncSessionLocal, Base, engine
 from app.models.demand_response import Consumer
 from fastapi import FastAPI
 from sqlalchemy import select
+from app.services.scheduler import start_scheduler, shutdown_scheduler
 
 from app.routers import events, telemetry,consumers  
 
@@ -23,8 +24,15 @@ async def lifespan(app:FastAPI):
             session.add_all(test_users)
             await session.commit()
             print('mock customers added')
+
+
+    start_scheduler()
     yield
+    shutdown_scheduler()
+    
     await engine.dispose()
+
+
 app = FastAPI(
     title="NeuroGrid API",
     description="Automated AI-driven demand-response system for energy management.",

@@ -10,10 +10,17 @@ from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/events", tags=["Demand Response Events"])
 
-@router.get("/trigger")
-async def trigger_event(db:AsyncSession=Depends(get_db)):
+
+GRID_DEFICIT=1.2 #kW
+
+
+async def run_demand_response_cycle(db:AsyncSession,force:bool=False):
     grid_data = get_live_grid_conditions()
     deficit = grid_data["calculated_kw_deficit"]
+
+    if deficit < GRID_DEFICIT and not force:
+        return {"status": "normal_operation", "deficit": deficit}
+
     
     result = await db.execute(select(Consumer))
     consumers = result.scalars().all()
@@ -70,6 +77,15 @@ async def trigger_event(db:AsyncSession=Depends(get_db)):
     except Exception as e:
         db.rollback()
         return {"status": "error", "detail": str(e)}
+    
+
+@router.get("/trigger")
+async def trigger_event(force: bool = True, db: AsyncSession = Depends(get_db)):
+    """HTTP endpoint reusing the core function."""
+    return await run_demand_response_cycle(db, force=force)
+
+
+
 
 @router.get("/history")
 async def get_dispatch_history(limit:int=10,db:AsyncSession=Depends(get_db)):
