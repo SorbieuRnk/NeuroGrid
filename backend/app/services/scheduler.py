@@ -1,6 +1,6 @@
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.db.session import AsyncSessionLocal
 from app.routers.events import run_demand_response_cycle
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 scheduler = AsyncIOScheduler()
 

@@ -1,7 +1,8 @@
 from datetime import datetime
-from sqlalchemy import String, Float, Integer, DateTime, ForeignKey, Text
+from sqlalchemy import String, Float, Integer, DateTime, ForeignKey, Text,Column, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
+import enum
 
 class Consumer(Base):
     __tablename__ = "consumers"
@@ -14,6 +15,11 @@ class Consumer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     dispatch_records: Mapped[list["DispatchLog"]] = relationship(back_populates="consumer")
+
+class VerificationStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    VERIFIED = "VERIFIED"
+    FAILED = "FAILED"
 
 class DispatchLog(Base):
     __tablename__ = "dispatch_logs"
@@ -28,5 +34,9 @@ class DispatchLog(Base):
     target_reduction_kw: Mapped[float] = mapped_column(Float)
     message_body: Mapped[str] = mapped_column(Text)
     dispatched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    verification_status: Mapped[str] = mapped_column(String(20), default="PENDING")
+    audits_completed: Mapped[int] = mapped_column(Integer, default=0)
+    failed_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     consumer: Mapped["Consumer"] = relationship(back_populates="dispatch_records")
