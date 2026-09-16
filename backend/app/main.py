@@ -3,27 +3,24 @@ from contextlib import asynccontextmanager
 from app.db.session import AsyncSessionLocal, Base, engine
 from app.models.demand_response import Consumer
 from fastapi import FastAPI
-from sqlalchemy import select
+from sqlalchemy import select,text
 from app.services.scheduler import start_scheduler, shutdown_scheduler
-
 from app.routers import events, telemetry,consumers  
+from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager
-async def lifespan(app:FastAPI):
+async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
+        # Run raw SQL to add columns safely without dropping anything:
+        await conn.execute(
+            text("""
+            ALTER TABLE dispatch_logs 
+            ADD COLUMN IF NOT EXISTS verification_status VARCHAR(20) DEFAULT 'PENDING',
+            ADD COLUMN IF NOT EXISTS audits_completed INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS failed_reason VARCHAR(255);
+            """)
+        )
         await conn.run_sync(Base.metadata.create_all)
-
-    async with AsyncSessionLocal() as session:
-        result=await session.execute(select(Consumer))
-        if not result.scalars().first():
-            test_users = [
-                Consumer(phone="+918847814413", household_name="Apartment 4B", current_kw=4.8, reward_preference="Travel Vouchers"),
-                Consumer(phone="+919876543210", household_name="Villa 12", current_kw=3.5, reward_preference="Electricity Bill Discount"),
-                Consumer(phone="+919123456789", household_name="Unit 102", current_kw=1.2, reward_preference="Cashback")
-            ]
-            session.add_all(test_users)
-            await session.commit()
-            print('mock customers added')
 
 
     start_scheduler()
@@ -40,6 +37,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows Vite/React/local HTML to connect
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(consumers.router)
 app.include_router(events.router)
 app.include_router(telemetry.router)

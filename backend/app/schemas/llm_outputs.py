@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field,ConfigDict,AliasChoices
 
 
 # --- LLM 1: Strategist Schemas ---
@@ -12,6 +12,7 @@ class HouseholdTarget(BaseModel):
     suggested_tips: list[str] = Field(description="Generic tips like 'Pause high-load appliances like AC or geyser'")
 
 class DemandResponseStrategy(BaseModel):
+    model_config = ConfigDict(title="demand_response_strategy")
     total_deficit_kw: float
     total_curtailable_kw: float
     target_users: list[HouseholdTarget]
@@ -19,5 +20,14 @@ class DemandResponseStrategy(BaseModel):
 # --- LLM 2: Copywriter Schemas ---
 
 class MessageDraft(BaseModel):
-    phone_number: str = Field(..., description="The recipient's WhatsApp number")
-    message_body: str = Field(..., description="High-conversion, engaging notification message under 160 characters")
+    phone_number: str
+    message_body: str
+
+# Schema strictly for the LLM output
+class CopywriterOutput(BaseModel):
+    model_config = ConfigDict(title="copywriter_output", populate_by_name=True)
+
+    message_body: str = Field(
+        validation_alias=AliasChoices("message_body", "alert", "message", "text", "body", "content"),
+        description="The demand-response notification text under 160 characters"
+    )
