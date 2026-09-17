@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Dark Schneider Slate Background -->
+  <rect width="32" height="32" rx="7" fill="#181A1B" />
+  
+  <!-- Grid / Node Connections -->
+  <circle cx="7" cy="7" r="1.5" fill="#3DCD58" fill-opacity="0.5" />
+  <circle cx="25" cy="7" r="1.5" fill="#3DCD58" fill-opacity="0.5" />
+  <circle cx="7" cy="25" r="1.5" fill="#3DCD58" fill-opacity="0.5" />
+  <circle cx="25" cy="25" r="1.5" fill="#3DCD58" fill-opacity="0.5" />
+  <line x1="7" y1="7" x2="25" y2="7" stroke="#3DCD58" stroke-opacity="0.25" stroke-dasharray="2 2" />
+  <line x1="7" y1="25" x2="25" y2="25" stroke="#3DCD58" stroke-opacity="0.25" stroke-dasharray="2 2" />
+  
+  <!-- Central Electric Bolt -->
+  <path d="M17.5 4L9 16.5H16L14.5 28L23 15.5H16L17.5 4Z" fill="#3DCD58" />
+</svg>
