@@ -1,105 +1,242 @@
-⚡ NeuroGrid — Autonomous Demand-Response & Verification GridNeuroGrid is an end-to-end, AI-powered autonomous Demand-Response (DR) management platform for smart electrical grids. Built with inspiration from Schneider Electric's industrial design language, NeuroGrid dynamically senses meteorological stress, formulates behavioral curtailment strategies using LLMs, dispatches micro-targeted incentives, and audits load reductions using a 3-point randomized spot-audit engine to prevent consumer telemetry gaming.🏗️ Architecture Overview                                  [ Open-Meteo API ]
-                                          │
-                                 (Live Heat & Humidity)
-                                          ▼
-[ Smart Meter Telemetry ] ──▶ [ Real-Time Thermal Deficit Engine ]
-                                          │
-                               (Grid Deficit in kW)
-                                          ▼
-                              [ LLM Strategist Agent ]
-                             (Target Selection & Quotas)
-                                          │
-                                          ▼
-                             [ LLM Copywriter Agent ]
-                            (Behavioral Alert Drafting)
-                                          │
-                         ┌────────────────┴────────────────┐
-                         ▼                                 ▼
-               [ Outbound SMS / Push ]       [ 3-Point Random Spot Auditor ]
-              ("Cut 30% for Cashback")       (Surprise Checks in 45m Window)
-                                                           │
-                                                           ▼
-                                           [ Verification State Machine ]
-                                          (0/3 ➔ 1/3 ➔ 2/3 ➔ PASS / FAIL)
-                                                           │
-                                                           ▼
-                                              [ Points Settlement Engine ]
-⚡ Core Features1. Thermal Grid Deficit IngestionIngests real-time meteorological conditions (temperature, humidity) to calculate active thermal load strains on the local distribution transformer.Evaluates non-linear cooling demand spikes to quantify exact grid curtailment deficits ($kW$).2. Multi-Agent AI Strategy & CopywritingStrategist Agent: Analyzes live smart-meter draws, matches curtailment quotas to optimal consumer baselines, and respects user-preferred incentives (bill discounts, cashback, vouchers).Behavioral Copywriter Agent: Composes micro-targeted, urgency-driven alerts strictly constrained under 160 characters with robust Pydantic JSON validation.3. Anti-Gaming 3-Point Spot Audit EngineTraditional DR programs suffer from rebound spikes and gaming (consumers dropping load for 2 minutes and resuming heavy consumption).NeuroGrid generates 3 hidden, randomized audit timestamps across the DR event window using APScheduler.Only consumers who sustain their targeted curtailment beneath their dynamic threshold for all 3 spot checks transition to VERIFIED. Caught cheaters are immediately flagged as FAILED.4. Schneider Electric Operator Console (SPA)Ultra high-contrast, clean administrative UI (Schneider Green #3DCD58, Deep Charcoal #252525, Crisp White surfaces).Live telemetry polling (3-second cadence).Real-time audit status trackers (0/3, 1/3, 2/3, VERIFIED, FAILED).One-click manual grid emergency dispatch override.📂 Repository LayoutPlaintext├── backend/
-│   ├── app/
-│   │   ├── core/           # Database engine & async session configs
-│   │   ├── models/         # SQLAlchemy 2.0 async ORM models (Consumers, DispatchLogs)
-│   │   ├── routers/        # FastAPI endpoints (/consumers, /telemetry, /events)
-│   │   ├── schemas/        # Pydantic validation models
-│   │   ├── services/
-│   │   │   ├── weather_service.py # Open-Meteo live condition ingestion
-│   │   │   ├── llm_strategist.py  # LangChain + Groq strategy agent
-│   │   │   ├── llm_copywriter.py  # LangChain + Groq behavioral SMS agent
-│   │   │   ├── verifier.py        # 3-Point random spot audit scheduler
-│   │   │   └── rewards.py         # Points settlement logic
-│   │   └── main.py         # FastAPI application entrypoint & lifespan
-│   ├── scripts/
-│   │   └── simulate_meters.py # Multi-household live load & cheater simulator
-│   └── requirements.txt
-│
-└── frontend/
-    ├── public/
-    │   └── neurogrid.svg   # Custom brand favicon
-    ├── src/
-    │   ├── api/
-    │   │   └── client.js   # Centralized API fetch layer with env abstraction
-    │   ├── components/
-    │   │   ├── common/     # Header, MetricCard, StatusBadge
-    │   │   └── dashboard/  # MetricsGrid, HouseholdTable, AuditTable, DispatchBanner
-    │   ├── pages/
-    │   │   └── DashboardPage.jsx # Operator console state orchestrator
-    │   ├── App.jsx
-    │   └── index.css       # Tailwind CSS directives
-    ├── .env                # Local development variables
-    ├── .env.production     # Production build variables
-    ├── tailwind.config.js  # Schneider design tokens
-    └── package.json
-🛠️ Getting StartedPrerequisitesPython 3.10+Node.js 18+ & npmPostgreSQL instance running locally or hosted (Supabase / Neon)Groq API Key (console.groq.com)Backend SetupClone the repository:Bashgit clone https://github.com/yourusername/neurogrid.git
-cd neurogrid/backend
-Create and activate a virtual environment:Bashpython -m venv venv
-# Windows:
-venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
-Install dependencies:Bashpip install -r requirements.txt
-Configure Environment Variables:Create a .env file inside backend/:Code snippetDATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/neurogrid
-GROQ_API_KEY=gsk_your_groq_api_key_here
-Initialize Database Schema & Run Server:Ensure PostgreSQL is running and the database neurogrid exists. The tables are generated automatically on startup:Bashuvicorn app.main:app --reload
-Interactive OpenAPI docs will be available at http://localhost:8000/docs.Frontend SetupNavigate to the frontend directory:Bashcd ../frontend
-Install Node dependencies:Bashnpm install
-Configure Environment Variables:Create a .env file in frontend/:Code snippetVITE_API_BASE_URL=http://localhost:8000
-Start Vite Development Server:Bashnpm run dev
-Access the Operator Console at http://localhost:5173.🧪 Running an End-to-End SimulationLaunch the Smart Meter Telemetry Simulator:In a separate terminal, start continuous meter streaming:Bashcd backend
-python scripts/simulate_meters.py
-This streams concurrent telemetry for compliant households alongside non-compliant "cheater" households drawing excessive load.Trigger a Demand-Response Event:Open the React Console at http://localhost:5173 and click "DISPATCH DEMAND RESPONSE", or trigger via cURL:Bashcurl -X GET http://localhost:8000/events/trigger
-Observe Automated Spot Audits:Review FastAPI logs to see the background scheduler register 3 surprise audit timestamps.Watch the React Operator Console update live as compliant users pass each spot check (1/3 $\to$ 2/3 $\to$ VERIFIED), while cheaters exceeding the curtailment ceiling are flagged as FAILED with exact violation details.📊 Database Schema HighlightsSQL-- Core Household Registry
-CREATE TABLE consumers (
-    id SERIAL PRIMARY KEY,
-    phone VARCHAR(20) UNIQUE NOT NULL,
-    household_name VARCHAR(100),
-    current_kw FLOAT DEFAULT 0.0,
-    reward_preference VARCHAR(50),
-    reward_points INTEGER DEFAULT 0
-);
+# NeuroGrid
 
--- Demand-Response Event & Audit Ledger
-CREATE TABLE dispatch_logs (
-    id SERIAL PRIMARY KEY,
-    consumer_id INTEGER REFERENCES consumers(id),
-    temperature FLOAT NOT NULL,
-    humidity FLOAT NOT NULL,
-    calculated_kw_deficit FLOAT NOT NULL,
-    baseline_kw FLOAT NOT NULL,
-    reduction_percent INTEGER NOT NULL,
-    target_reduction_kw FLOAT NOT NULL,
-    message_body TEXT NOT NULL,
-    dispatched_at TIMESTAMP DEFAULT NOW(),
-    verification_status VARCHAR(20) DEFAULT 'PENDING',
-    audits_completed INTEGER DEFAULT 0,
-    failed_reason VARCHAR(255)
-);
-🔒 Security & Operational Best PracticesNo Secret Exposure: Frontend environment variables rely strictly on the VITE_ prefix and exclude database credentials, backend secrets, or LLM API keys.Resilient Parsing: The LLM extraction pipeline utilizes Pydantic aliases (AliasChoices) alongside JSON mode to safeguard against runtime parsing mismatches.Connection Pooling: Smart meter simulators use bounded connection pool limits and HTTP timeouts to avoid socket exhaustion during rapid telemetry bursts.📜 LicenseDistributed under the MIT License. See LICENSE for details.
+AI-powered demand-response coordination for smart energy systems. This project combines a FastAPI backend, a React dashboard, and a live meter simulation flow to detect grid stress, target demand reduction, and verify compliance with randomized spot audits.
+
+## Overview
+
+NeuroGrid monitors environmental conditions and household telemetry, calculates a thermal grid deficit, generates a reduction strategy, dispatches customer alerts, and then audits whether households actually hold their load under target thresholds.
+
+The app is designed around a real-time operator workflow:
+
+- live weather and grid conditions
+- household and meter tracking
+- AI-generated strategy recommendations
+- dispatch messaging
+- verification and audit tracking
+- dashboard visibility for operators
+
+## Project structure
+
+```text
+NeuroGrid/
+├── backend/
+│   ├── app/
+│   │   ├── db/
+│   │   │   └── session.py
+│   │   ├── models/
+│   │   │   └── demand_response.py
+│   │   ├── routers/
+│   │   │   ├── consumers.py
+│   │   │   ├── events.py
+│   │   │   └── telemetry.py
+│   │   ├── schemas/
+│   │   │   ├── consumer_schema.py
+│   │   │   └── llm_outputs.py
+│   │   ├── services/
+│   │   │   ├── llm_copywriter.py
+│   │   │   ├── llm_strategist.py
+│   │   │   ├── scheduler_instance.py
+│   │   │   ├── scheduler.py
+│   │   │   ├── twilio_client.py
+│   │   │   ├── verifier.py
+│   │   │   └── weather_service.py
+│   │   └── main.py
+│   ├── scripts/
+│   │   └── simulate_meters.py
+│   └── venv/
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── api/
+│   │   │   └── client.jsx
+│   │   ├── components/
+│   │   │   ├── common/
+│   │   │   └── dashboard/
+│   │   ├── pages/
+│   │   │   └── DashboardPage.jsx
+│   │   ├── App.jsx
+│   │   ├── App.css
+│   │   ├── index.css
+│   │   └── main.jsx
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   └── README.md
+├── .gitignore
+├── readme.md
+└── .vscode/
+```
+
+## Core workflow
+
+1. Weather data is fetched from the backend services.
+2. The system calculates a grid deficit using current temperature and humidity conditions.
+3. A strategy engine identifies which consumers should be targeted and by how much.
+4. The copywriter generates the message content for each household.
+5. The event router dispatches the strategy and schedules randomized verification checks.
+6. The dashboard reads the live statuses and shows progress, verified results, and failed audits.
+
+## Backend
+
+The backend is a FastAPI app and lives under `backend/app`.
+
+### Key backend files
+
+- `backend/app/main.py` — app startup, DB setup, scheduler startup, API registration
+- `backend/app/routers/events.py` — trigger DR events, summarize history, expose dashboard state
+- `backend/app/routers/telemetry.py` — accept smart meter readings
+- `backend/app/routers/consumers.py` — register and list consumers
+- `backend/app/models/demand_response.py` — consumer and dispatch models
+- `backend/app/services/weather_service.py` — weather and load-forecast logic
+- `backend/app/services/llm_strategist.py` — load reduction targeting logic
+- `backend/app/services/llm_copywriter.py` — customer message drafting
+- `backend/app/services/verifier.py` — randomly scheduled audit checks
+- `backend/scripts/simulate_meters.py` — test meter stream for compliant and cheating households
+
+## Frontend
+
+The frontend is a Vite + React dashboard designed for grid operators.
+
+### Frontend app files
+
+- `frontend/src/App.jsx` — app entry point
+- `frontend/src/pages/DashboardPage.jsx` — main dashboard screen
+- `frontend/src/components/dashboard/` — summaries, tables, alerts, and dispatch data
+- `frontend/src/components/common/` — shared UI elements like status badges and metrics
+- `frontend/src/api/client.jsx` — API integration layer
+
+## Tech stack
+
+### Backend
+
+- Python
+- FastAPI
+- SQLAlchemy
+- PostgreSQL / async SQLAlchemy
+- APScheduler
+- Pydantic
+- httpx
+- python-dotenv
+
+### Frontend
+
+- React
+- Vite
+- JavaScript / JSX
+- CSS
+
+## Local setup
+
+# Example .env needed for local development
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/neurogrid
+GROQ_API_KEY=your_groq_api_key_here
+
+### 1. Backend
+
+From the project root:
+
+```bash
+cd backend
+python -m venv venv
+```
+
+On Windows:
+
+```bash
+venv\Scripts\activate
+```
+
+On macOS/Linux:
+
+```bash
+source venv/bin/activate
+```
+
+Install required Python packages. The repo does not currently include a committed requirements file, so install the libraries used by the app directly:
+
+```bash
+pip install fastapi uvicorn sqlalchemy asyncpg python-dotenv pydantic httpx apscheduler
+```
+
+Create a `.env` file inside `backend/` with a database URL similar to:
+
+```env
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/neurogrid
+```
+
+Run the API:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+The API will be available at:
+
+- http://localhost:8000
+- Swagger docs: http://localhost:8000/docs
+
+### 2. Frontend
+
+From the project root:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the Vite app in the browser:
+
+- http://localhost:5173
+
+## Demo / simulation flow
+
+A meter simulator is included for testing the DR loop.
+
+```bash
+cd backend
+python scripts/simulate_meters.py
+```
+
+This streams synthetic household consumption so the app can emulate normal usage and cheating behavior.
+
+To trigger a demand-response cycle manually:
+
+```bash
+curl http://localhost:8000/events/trigger
+```
+
+You can also review the event status and operational state from:
+
+- `/events/history`
+- `/events/dashboard-state`
+- `/events/verification/{log_id}`
+
+## API highlights
+
+### Consumers
+
+- `POST /consumers/` — register a consumer
+- `GET /consumers/` — list registered consumers
+- `DELETE /consumers/{phone}` — remove a consumer
+
+### Telemetry
+
+- `POST /telemetry/meter` — update live meter load for a household
+
+### Events
+
+- `GET /events/trigger` — execute a demand-response cycle
+- `GET /events/history` — view dispatch history
+- `GET /events/dashboard-state` — dashboard summary payload
+- `GET /events/verification/{log_id}` — check audit progress
+
+## Notes
+
+- The current backend and frontend are already wired together for local development.
+- The project uses an operator dashboard to view live demand-response events and verification outcomes.
+- The design is intentionally focused on practical control-room usage rather than a generic marketing landing page.
+
+## License
+
+This project is currently structured as an internal demo and prototype repository without a formal license file in the root directory.
